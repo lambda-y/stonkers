@@ -46,10 +46,13 @@ async def on_message(message):
             content = message.content.split(" ")
             try:
                 stonk = yf.Ticker(content[1])
-                stonk.info
+                data = stonk.info
             except Exception:
                 await message.channel.send("That symbol is unrecognized or invalid, Please Try again :)")
                 return
+            print(content[1])
+            content[1] = content[1].upper()
+            print(content[1])
 
             serverID = message.guild.id
             guild = guilds.find_one({},{ "id": serverID, "stocks": [] })
@@ -57,14 +60,25 @@ async def on_message(message):
             for x in guilds.find():
                 print(x)
 
-            stockList = guild["stocks"]
-            if(content[1] not in stockList):
-                stockList.append(content[1])
-                guilds.update({"id" : serverID}, { "$set": {"stocks": stockList }})
-            print(stockList)
+            adding = [content[1], data['previousClose']]
 
+            stockList = guild["stocks"]
+
+            for i in stockList:
+                if(i[0] == content[1].upper()):
+                    return
+
+            stockList.append(adding)
+            guilds.update({"id" : serverID}, { "$set": {"stocks": stockList }})
             await message.channel.send("Stock added :)")
-            
+        
+        elif message.content.startswith('watchlist'):
+            serverID = message.guild.id
+            guild = guilds.find_one({},{ "id": serverID, "stocks": [] })
+            stockList = guild["stocks"]
+
+            await message.channel.send("This group is currently watching: " + ", ".join(stockList))
+
         elif message.content.startswith('list'):
             #TODO list stonk symbols
             #EX:    TSLA $450 +13% today
@@ -72,8 +86,12 @@ async def on_message(message):
             guild = guilds.find_one({},{ "id": serverID, "stocks": [] })
             stockList = guild["stocks"]
 
-            for x in stockList:
-                await message.channel.send(grabStock(x))
+            print(stockList)
+            if(len(stockList) == 0):
+                await message.channel.send("Looks like there was nothing to grab")
+            else:
+                await message.channel.send("Grabbing your list, wait a second :)")
+                await message.channel.send(grabStocks(stockList))
             #print("LIST")
 
         elif message.content.startswith('del'):
@@ -82,7 +100,7 @@ async def on_message(message):
 
             try:
                 stonk = yf.Ticker(content[1])
-                stonk.info
+                data = stonk.info
             except Exception:
                 await message.channel.send("That symbol is unrecognized or invalid, Please Try again :)")
                 return
@@ -94,15 +112,15 @@ async def on_message(message):
                 print(x)
 
             stockList = guild["stocks"]
-            if(content[1] not in stockList):
-                await message.channel.send("That stock wasn't there to begin with! :)")
-                return
+            
+            for i in stockList:
+                if(i[0] == content[1].upper()):
+                    stockList.remove(i)
+                    guilds.update({"id" : serverID}, { "$set": {"stocks": stockList }})
+                    await message.channel.send("Stock removed :)")
+                    return
 
-            stockList.remove(content[1])
-            guilds.update({"id" : serverID}, { "$set": {"stocks": stockList }})
-            print(stockList)
-
-            await message.channel.send("Stock removed :)")
+            await message.channel.send("Stock wasn't there :)")
 
         elif message.content.startswith('graph'):
             content = message.content.split(" ")    #Segments data members
@@ -161,10 +179,11 @@ async def on_message(message):
             print(message.guild.id)
             
 def helpFunction():
-    payload = "```\t\tWelcome to stonkers!\n\nCommands\n"
+    payload = "```\t\tWelcome to stonkers!\n\nCommands:\n"
     payload+= "add: \t  Adds new stock symbols EX: <$$add TSLA>*\n"
     payload+= "del: \t  Deletes stocks from the server list EX: <$$del SBUX> \n"
-    payload+= "list: \t Lists the stock symbols that were added EX: <$$list>\n"
+    payload+= "watchlist: Lists the stocks that were added EX: <$$watchlist> \n"
+    payload+= "list: \t Lists the stock symbols that were added along with prices EX: <$$list>\n"
     payload+= "grab: \t Grabs information about the stock symbols EX: <$$grab TSLA>\n"
     payload+= "graph: \tGraphs the stock symbol:  <$$graph MSFT>\n"
     payload+= "```"
@@ -193,7 +212,40 @@ def grabStock(stock):
     payload += "```"
     return(payload)
 
+def grabStocks(stockList):
+    
+    payload = "```diff\n"
+    for stonkA, stockB in stockList:
+        try:
+            stonk = yf.Ticker(stonkA)
+            data = stonk.info
+        except Exception:
+            return("That symbol is unrecognized or invalid, Please Try again :)")
+            
+        
+        payload += data['shortName'] + " \n"
+        payload += "OpenPrice: " + str(data['open']) + "\tClosePrice: " + str(data['previousClose']) + "\n"
+        changeInPercent = (data['previousClose'] / data['open'])-1
+        changeInPercent *= 100
+        changeInPercent = "%.2f" % changeInPercent
 
+        if(float(changeInPercent) > 0):
+            payload += "+Today's Percent Change: " + (changeInPercent) + "\n"
+        else:
+            payload += "-Today's Percent Change: " + (changeInPercent) + "\n"
+
+        changeInPercent = (data['previousClose'] / stockB)-1
+        changeInPercent *= 100
+        changeInPercent = "%.2f" % changeInPercent
+
+        if(float(changeInPercent) > 0):
+            payload += "+Overall Percent Change since adding: " + (changeInPercent) + "\n\n"
+        else:
+            payload += "-Overall Percent Change since adding: " + (changeInPercent) + "\n\n"
+
+
+    payload += "```"
+    return(payload)
     
 
 @client.event

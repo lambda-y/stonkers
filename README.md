@@ -1,7 +1,6 @@
 Welcome to stonkers!
 
-
-
+|
 
 Commands:
 
@@ -17,8 +16,7 @@ grab:      Grabs information about the stock symbols EX: <$$grab TSLA>
 
 graph:     Graphs the stock symbol:  <$$graph MSFT>
 
-
-
+|
 
 This application is used to run as a bot to watch stocks and grab stock information 
 to respond back to the Discord servers where the bot is added to. I wanted people to

@@ -1,5 +1,8 @@
 Welcome to stonkers!
 
+
+
+
 Commands:
 
 add:       Adds new stock symbols EX: <$$add TSLA>*
@@ -13,6 +16,8 @@ list:      Lists the stock symbols that were added along with prices EX: <$$list
 grab:      Grabs information about the stock symbols EX: <$$grab TSLA>
 
 graph:     Graphs the stock symbol:  <$$graph MSFT>
+
+
 
 
 This application is used to run as a bot to watch stocks and grab stock information 

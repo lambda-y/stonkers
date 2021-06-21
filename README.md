@@ -1,11 +1,17 @@
 Welcome to stonkers!
 
 Commands:
+
 add:       Adds new stock symbols EX: <$$add TSLA>*
+
 del:       Deletes stocks from the server list EX: <$$del SBUX> 
+
 watchlist: Lists the stocks that were added EX: <$$watchlist> 
+
 list:      Lists the stock symbols that were added along with prices EX: <$$list>
+
 grab:      Grabs information about the stock symbols EX: <$$grab TSLA>
+
 graph:     Graphs the stock symbol:  <$$graph MSFT>
 
 

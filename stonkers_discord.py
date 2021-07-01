@@ -3,12 +3,15 @@
 import discord
 import yfinance as yf
 import colorsys
+import datetime
 import pandas as pd
 import matplotlib.pyplot as plt
+from matplotlib.dates import drange
 import os
 from dotenv import load_dotenv
 from flask import Flask, request, jsonify
 from pymongo import MongoClient
+import pymongo
 
 
 
@@ -17,73 +20,113 @@ from pymongo import MongoClient
 load_dotenv("config.env")
 
 #Run MongoDB and be able to grab list of stonks to watch
-mongoCL = MongoClient(os.getenv("MONGODB_ADDRESS"), int(os.getenv("MONGODB_PORT")))
+mongoCL = pymongo.MongoClient(os.getenv("MONGODB_ADDRESS"), int(os.getenv("MONGODB_PORT")))
 db = mongoCL["stonkers"]
 guilds = db["guilds"]
 #accounts.load()
 
 f = open("privateTOKEN")    #PrivateFile in the same directory
 
+
+
+
+""" guilds: [
+    discord1: {
+        stockList
+    },
+    discord2: {
+
+    }
+}
+
+
+
+
+
+ """
+
+
+
+
+
+
 TOKEN = f.readline()
+f.close()
 client = discord.Client()
 
 @client.event
 async def on_message(message):
 
-    if message.content.startswith('$$'):
-
-        if message.author == client.user:
+    if message.author == client.user:
             return
-
+    if message.content.startswith('$$'):
 
         message.content = message.content[2::]
         if message.content.startswith('add'):
             #TODO add symbols to table to watch
             #Also need to check user's that are listed 
 
-            
-
             content = message.content.split(" ")
             try:
                 stonk = yf.Ticker(content[1])
                 data = stonk.info
+                content[1] = content[1].upper()
+                adding = [content[1], data['previousClose']]
             except Exception:
                 await message.channel.send("That symbol is unrecognized or invalid, Please Try again :)")
                 return
-            print(content[1])
-            content[1] = content[1].upper()
-            print(content[1])
 
             serverID = message.guild.id
-            guild = guilds.find_one({},{ "id": serverID, "stocks": [] })
+            #print(guilds.find_one())
+            guild = guilds.find_one({"id": serverID})
+            
+            stockList = []
+            try:
+                stockList = guild['stocks']
 
-            for x in guilds.find():
-                print(x)
+                for i in stockList:
+                    if(i[0] == content[1].upper()):
+                        return
 
-            adding = [content[1], data['previousClose']]
+                stockList.append(adding)
+                guilds.update_one({"id" : serverID}, { "$set": {"stocks": stockList }})
+            except TypeError:
+                stockList.append(adding)
+                guilds.insert_one({"id" : serverID, "stocks" : stockList})
 
-            stockList = guild["stocks"]
+                print("Type Error in adding")
+                pass
+            except KeyError:
+                stockList.append(adding)
+                guilds.update_one({"id" : serverID}, { "$set": {"stocks": stockList }})
 
-            for i in stockList:
-                if(i[0] == content[1].upper()):
-                    return
-
-            stockList.append(adding)
-            guilds.update({"id" : serverID}, { "$set": {"stocks": stockList }})
+                print("Key Error in adding")
+                pass
+            
+            #print(stockList)
+            
             await message.channel.send("Stock added :)")
         
         elif message.content.startswith('watchlist'):
             serverID = message.guild.id
-            guild = guilds.find_one({},{ "id": serverID, "stocks": [] })
+            
+            guild = guilds.find_one({ "id": serverID })
+            print(guild)
+            print(serverID)
             stockList = guild["stocks"]
+            #print(stockList)
 
-            await message.channel.send("This group is currently watching: " + ", ".join(stockList))
+            watchlist = []
+            for x in stockList:
+                watchlist.append(x[0])
+
+            await message.channel.send("This group is currently watching: " + ", ".join(watchlist))
 
         elif message.content.startswith('list'):
             #TODO list stonk symbols
             #EX:    TSLA $450 +13% today
             serverID = message.guild.id
-            guild = guilds.find_one({},{ "id": serverID, "stocks": [] })
+            guild = guilds.find_one({ "id": serverID })
             stockList = guild["stocks"]
 
             print(stockList)
@@ -98,25 +141,16 @@ async def on_message(message):
             #TODO remove item from list
             content = message.content.split(" ")
 
-            try:
-                stonk = yf.Ticker(content[1])
-                data = stonk.info
-            except Exception:
-                await message.channel.send("That symbol is unrecognized or invalid, Please Try again :)")
-                return
-
             serverID = message.guild.id
-            guild = guilds.find_one({},{ "id": serverID, "stocks": [] })
+            guild = guilds.find_one({ "id": serverID })
 
-            for x in guilds.find():
-                print(x)
 
             stockList = guild["stocks"]
             
             for i in stockList:
                 if(i[0] == content[1].upper()):
                     stockList.remove(i)
-                    guilds.update({"id" : serverID}, { "$set": {"stocks": stockList }})
+                    guilds.update_one({"id" : serverID}, { "$set": {"stocks": stockList }})
                     await message.channel.send("Stock removed :)")
                     return
 
@@ -134,7 +168,8 @@ async def on_message(message):
                 f = plt.figure()    #Creates a new MathPlot figure
                 try:
                     stonk = yf.Ticker(content[1])   #Tests to make sure that the stock is a valid symbol
-                    stonk.info
+                    data = stonk.info
+                    data["previousClose"]
                     data = stonk.history(period="1wk")
                 except Exception:
                     await message.channel.send("That symbol is unrecognized or invalid, Please Try again :)")
@@ -144,15 +179,19 @@ async def on_message(message):
                 closingNumbers = []
 
                 for i in range(len(data.index.values)):
-                    closingNumbers.append("%.2f" % data.iloc[i][2])
+                    closingNumbers.append(float("%.2f" % data.iloc[i][2]))
                     ts = pd.to_datetime(str(data.index.values[i]))
                     dates.append(ts.strftime('%m-%d'))
 
-                plt.plot(dates, closingNumbers, color="blue", marker='.')
+                
+
+                #plt.plot(range(5), closingNumbers)
+                plt.scatter(dates, closingNumbers, color="blue")
                 plt.xlabel("Time (1 week(s))")
                 plt.ylabel("Closing Stock price (USD)")
                 plt.title("Graph of " + content[1] + " over 1 week(s)")
                 plt.grid(True)
+                
 
                 while(os.path.exists('foo.jpg')):
                     print("waiting")
@@ -194,6 +233,7 @@ def grabStock(stock):
     try:
         stonk = yf.Ticker(stock)
         data = stonk.info
+        data["previousClose"]
     except Exception:
         return("That symbol is unrecognized or invalid, Please Try again :)")
         
@@ -219,6 +259,7 @@ def grabStocks(stockList):
         try:
             stonk = yf.Ticker(stonkA)
             data = stonk.info
+            data["previousClose"]
         except Exception:
             return("That symbol is unrecognized or invalid, Please Try again :)")
             
@@ -250,6 +291,9 @@ def grabStocks(stockList):
 
 @client.event
 async def on_ready():
+    activityV = discord.Activity(type=discord.ActivityType.custom, state="Use $$help for stonking commands")
+    await client.change_presence(activity=activityV)
+    discord.Activity(name="test", type=5)
     print('Logged in as')
     print(client.user.name)
     print(client.user.id)
